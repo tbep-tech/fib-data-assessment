@@ -1,0 +1,205 @@
+---
+title: "FIB Exploration"
+format: 
+    html:
+        fig-width: 7
+        fig-height: 7
+        toc: true
+embed-resources: true
+execute:
+    echo: false
+    message: false
+    warning: false
+    error: true
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(mapview)
+library(khroma) # for colorblind-friendly color palettes
+library(tbeptools)
+```
+
+```{r read-shapefiles}
+path <- here::here("GIS")
+
+bay_segs <- st_read(here::here(path, "TBEP-Bay_Segments.shp"),
+                    quiet = TRUE)
+wbids <- st_read(here::here(path, "Waterbody_IDs_(WBIDs).shp"),
+                    quiet = TRUE)
+
+# tbseg is a polygon layer included in tbeptools
+# tidalcreeks is as well but needs to be subsetted; covers most of SWFL
+```
+
+```{r modify-shapefiles}
+# pull out crs of the wbids for future joins, and make sure bay_segs is in that crs
+to_crs <- st_crs(wbids)
+bay_segs <- st_transform(bay_segs, crs = to_crs)
+
+# subset wbids to only those that intersect bay segments
+wbids <- st_intersection(wbids, bay_segs)
+```
+
+## FIB Sampling points
+
+This file contains *results* from microbiological sampling in the 5 TBEP counties from 1995-2022. We don't necessarily need to know what the results are, just that they exist. The query from Water Quality Portal was also set to only include stations with at least 10 sampling events. The latest download was performed 1/29/2024 and [this is the link to the query](https://www.waterqualitydata.us/#countrycode=US&statecode=US%3A12&countycode=US%3A12%3A057&countycode=US%3A12%3A081&countycode=US%3A12%3A101&countycode=US%3A12%3A103&countycode=US%3A12%3A105&sampleMedia=Water&characteristicType=Microbiological&startDateLo=01-01-1995&startDateHi=12-31-2022&minactivities=10&mimeType=csv&dataProfile=biological&providers=NWIS&providers=STEWARDS&providers=STORET).
+
+That download was pre-processed using `R/WQP_preprocessing.R` to:  
+
+-  filter out Groundwater samples - only keeping Surface Water.  
+-  only keep sample types Fecal Coliform, Total Coliform, Enterococcus, and E. coli (eliminates DNA-based samples). Total Coliform is in the processed data frame but I am ignoring it in this exploration.  
+-  only keep a small subset of columns relevant to this exploration.  
+
+The pre-processing reduced the file size from 167MB to 40MB, and the smaller file is used in this document.  
+
+```{r read-modify-sample-info}
+fib_samps <- read.csv(here::here("data-WQP", "biological_reduced.csv")) |> 
+    filter(CharacteristicName %in% c("Fecal Coliform", "Enterococcus", "Escherichia coli"))
+
+# pull out distinct lat longs to intersect with other mapping layers
+# keep these for later joining
+fib_latlongs <- fib_samps |> 
+    select(SampleStation,
+           Lat,
+           Long) |> 
+    distinct() |> 
+    na.omit()        
+# note - 252 rows were removed by na.omit - 
+# that's 252 stations without lat/longs
+
+
+# turn the lat/longs into an sf object
+fib_toMap <- fib_latlongs |> 
+    st_as_sf(coords = c("Long", "Lat"),
+             crs = "WGS84") |>              # WGS84 is default for handheld GPS units
+    st_transform(crs = to_crs) |> 
+    cbind(fib_latlongs) |> 
+    select(-SampleStation.1)
+
+
+# only grab stations that intersect with our polygon layers of interest
+# already intersected wbids with bay_segs, so only need the one here
+fib_toMap <- st_intersection(fib_toMap, wbids)  |> 
+    select(SampleStation,
+           Lat, Long,
+           Bay.Segment = BAY_SEG,
+           Water.Body.Name = WATERBODY_,
+           Water.Type = WATER_TYPE,
+           Class = CLASS,
+           HUC,
+           WBID)
+```
+
+```{r wbid-dupes}
+# there are 9 sites with two associated WBIDS, due to various
+# changes between runs. This causes joining problems
+# doesn't matter which we keep for summary tables
+# because the changes are WBID, Water Body Name, and Class -
+# but always either 2 or 3M, both of which we'll keep for summaries
+
+# will keep them in the main mapping group, in case the individual 
+# WBIDs matter to TBEP in the future
+
+# but for other summarizing, want only one WBID per station
+# doesn't matter which
+
+# identify dupes - this df contains all WBID info too
+# should you want to stop and investigate
+dupes <- st_drop_geometry(fib_toMap) |>
+    janitor::get_dupes(SampleStation, Lat, Long)
+
+# associate a logical column for later filtering
+dupes$duplicated <- duplicated(dupes[1:3])
+
+# select columns for less obnoxious joining
+dupes <- dupes |> 
+    select(SampleStation, Lat, Long, WBID, duplicated)
+
+# join to fib_toMap and get rid of the rows identified as duplicates
+fib_stnInfo <- fib_toMap |> 
+    left_join(dupes, by = c("SampleStation", "Lat", "Long", "WBID")) |> 
+    mutate(duplicated = case_when(is.na(duplicated) ~ FALSE,
+                                  .default = duplicated)) |> 
+    filter(duplicated == FALSE) |> 
+    select(-duplicated) |> 
+    st_drop_geometry()
+```
+
+```{r join-fibsamps-wbidinfo}
+# now get all that WBID and Bay Segment info attached to the actual
+# fib sample data frame
+# remove sites without without associated "Bay.Segment" -
+# those are either outside the area
+# or they didn't have lat/longs at all in the original data
+fib_tb <- left_join(fib_samps, fib_stnInfo,
+                        by = c("SampleStation", "Lat", "Long")) |> 
+    filter(!is.na(Bay.Segment)) 
+```
+
+# Maps  
+
+
+
+
+# Tabular Summaries  
+
+```{r}
+fib_temporal <- fib_tb |> 
+    select(SampleDate, OrgName, SampleStation, 
+           Lat, Long, CharacteristicName,
+           Bay.Segment, Class, WBID) |> 
+    mutate(SampleDate = lubridate::ymd(SampleDate),
+           Year = lubridate::year(SampleDate),
+           Month = lubridate::month(SampleDate)) |> 
+    distinct()    # eliminate duplicate samples for an individual fib from a station on a date
+    # mutate(sampled = "yes") |> 
+    # pivot_wider(names_from = CharacteristicName,
+    #             values_from = sampled,
+    #             values_fill = "no") # |> 
+    # left_join(fib_combos)
+```
+
+## Any FIB by Bay Segment
+
+```{r}
+fib_temporal |> 
+    summarize(.by = Bay.Segment,
+              nProviders = length(unique(OrgName)),
+              nStations = length(unique(SampleStation)),
+              nYears = length(unique(Year)),
+              earliest = min(Year),
+              mostRecent = max(Year)) |> 
+    gt::gt()
+```
+
+## Any FIB, Estuarine only, by Bay Segment  
+
+```{r}
+fib_temporal |> 
+    filter(Class %in% c("2", "3M")) |> 
+    summarize(.by = Bay.Segment,
+              nProviders = length(unique(OrgName)),
+              nStations = length(unique(SampleStation)),
+              nYears = length(unique(Year)),
+              earliest = min(Year),
+              mostRecent = max(Year)) |> 
+    gt::gt()
+```
+
+## By FIB x Bay Segment, Estuarine only  
+
+```{r}
+fib_temporal |> 
+    filter(Class %in% c("2", "3M")) |> 
+    summarize(.by = c(CharacteristicName, Bay.Segment),
+              nProviders = length(unique(OrgName)),
+              nStations = length(unique(SampleStation)),
+              nYears = length(unique(Year)),
+              earliest = min(Year),
+              mostRecent = max(Year)) |> 
+    gt::gt()
+```
+
+

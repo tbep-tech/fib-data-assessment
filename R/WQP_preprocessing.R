@@ -2,7 +2,7 @@
 library(dplyr)
 library(tidyr)
 
-fib_samps <- read.csv(here::here("WQP downloads", "biologicalresult.csv")) |>
+fib_samps <- read.csv(here::here("data-WQP", "biologicalresult.csv")) |>
     janitor::remove_empty("cols")
 
 fib_reduced <- fib_samps |> 
@@ -23,6 +23,6 @@ fib_reduced <- fib_samps |>
                                      "Enterococcus",
                                      "Escherichia coli"))
 
-write.csv(fib_reduced, here::here("WQP downloads", "biological_reduced.csv"),
+write.csv(fib_reduced, here::here("data-WQP", "biological_reduced.csv"),
           na = "",
           row.names = FALSE)
