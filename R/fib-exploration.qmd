@@ -19,6 +19,7 @@ library(sf)
 library(mapview)
 library(khroma) # for colorblind-friendly color palettes
 library(tbeptools)
+library(kableExtra)
 ```
 
 ```{r read-shapefiles}
@@ -174,32 +175,80 @@ fib_temporal |>
     gt::gt()
 ```
 
-## Any FIB, Estuarine only, by Bay Segment  
-
-```{r}
-fib_temporal |> 
-    filter(Class %in% c("2", "3M")) |> 
-    summarize(.by = Bay.Segment,
-              nProviders = length(unique(OrgName)),
-              nStations = length(unique(SampleStation)),
-              nYears = length(unique(Year)),
-              earliest = min(Year),
-              mostRecent = max(Year)) |> 
-    gt::gt()
-```
 
 ## By FIB x Bay Segment, Estuarine only  
 
 ```{r}
-fib_temporal |> 
+fib_est_wide <- fib_temporal |> 
     filter(Class %in% c("2", "3M")) |> 
     summarize(.by = c(CharacteristicName, Bay.Segment),
               nProviders = length(unique(OrgName)),
               nStations = length(unique(SampleStation)),
-              nYears = length(unique(Year)),
               earliest = min(Year),
-              mostRecent = max(Year)) |> 
-    gt::gt()
+              mostRecent = max(Year)) |>
+    mutate(years = paste(earliest, mostRecent, sep = " - ")) |> 
+    select(-earliest, -mostRecent) |> 
+    pivot_wider(id_cols = Bay.Segment,
+                names_from = CharacteristicName,
+                values_from = c(nProviders:years),
+                names_glue = "{CharacteristicName}_{.value}",
+                names_vary = "slowest")
 ```
 
+```{r}
+options(knitr.kable.NA = "-")
+kbl(fib_est_wide,
+    caption = "Estuarine and Marine FIB Information",
+    col.names = c("Bay Segment",
+                  rep(c("# Providers", "# Stations",
+                        "Years"), times = 3)),
+    booktabs = TRUE,
+    align = c("l", rep("c", 9))) |> 
+    kable_styling("striped", full_width = FALSE) |> 
+    add_header_above(c("", 
+                       "Fecal Coliform" = 3,
+                       "Enterococcus" = 3,
+                       "E. coli" = 3)) |> 
+    column_spec(c(1, 4, 7), border_right = TRUE,
+                extra_css = "border-right:2px solid lightgrey;")
+```
+
+## By Provider x Bay Segment
+
+```{r}
+fib_est_providers <- fib_temporal |> 
+    filter(Class %in% c("2", "3M")) |> 
+    summarize(.by = c(CharacteristicName, Bay.Segment, OrgName),
+              nStations = length(unique(SampleStation)),
+              earliest = min(Year),
+              mostRecent = max(Year)) |>
+    mutate(years = paste(earliest, mostRecent, sep = "- ")) |> 
+    select(-earliest, -mostRecent) |> 
+    pivot_wider(id_cols = c(Bay.Segment, OrgName),
+                names_from = CharacteristicName,
+                values_from = c(nStations:years),
+                names_glue = "{CharacteristicName}_{.value}",
+                names_vary = "slowest") |> 
+    arrange(Bay.Segment, OrgName)
+```
+
+```{r}
+options(knitr.kable.NA = "-")
+kbl(fib_est_providers[2:ncol(fib_est_providers)],
+    caption = "Estuarine and Marine FIB Information by Provider",
+    col.names = c("Bay Segment / Provider",
+                  rep(c("# Stations",
+                        "Years"), times = 3)),
+    align = c("l", rep("c", 6))) |> 
+    kable_styling("striped", full_width = TRUE) |> 
+    add_header_above(c(" " = 1, 
+                       "Fecal Coliform" = 2,
+                       "Enterococcus" = 2,
+                       "E. coli" = 2)) |> 
+    column_spec(c(1, 3, 5), border_right = TRUE,
+                extra_css = "border-right:2px solid lightgrey;") |> 
+    column_spec(1, width_min = "3in") |> 
+    pack_rows(index = table(fib_est_providers$Bay.Segment)) |> 
+    scroll_box(height = "600px")
+```
 
