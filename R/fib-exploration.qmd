@@ -55,10 +55,12 @@ That download was pre-processed using `R/WQP_preprocessing.R` to:
 
 The pre-processing reduced the file size from 167MB to 40MB, and the smaller file is used in this document.  
 
-```{r read-modify-sample-info}
+```{r read-sample-info}
 fib_samps <- read.csv(here::here("data-WQP", "biological_reduced.csv")) |> 
     filter(CharacteristicName %in% c("Fecal Coliform", "Enterococcus", "Escherichia coli"))
+```
 
+```{r modify-sample-info}
 fibs_wide <- fib_samps |> 
     mutate(SampleYear = lubridate::year(lubridate::ymd(SampleDate))) |> 
     select(OrgID, OrgName,  
@@ -95,7 +97,7 @@ fib_toMap <- fib_latlongs |>
 # already intersected wbids with bay_segs, so only need the one here
 fib_toMap <- st_intersection(fib_toMap, wbids)  |> 
     select(SampleStation,
-           OrgName,
+           OrgID, OrgName,
            Lat, Long,
            Bay.Segment = BAY_SEG,
            Water.Body.Name = WATERBODY_,
@@ -150,10 +152,37 @@ fib_stnInfo <- fib_toMap |>
 # those are either outside the area
 # or they didn't have lat/longs at all in the original data
 fib_tb <- left_join(fib_samps, fib_stnInfo,
-                        by = c("SampleStation", "OrgName", "Lat", "Long")) |> 
+                        by = c("SampleStation", "OrgID", "OrgName", "Lat", "Long")) |> 
     filter(!is.na(Bay.Segment)) 
 ```
 
+```{r}
+# and muscle some shorter names
+short_names <- tibble(OrgName = sort(unique(fib_tb$OrgName)),
+                      shortName = c("Charlotte Cty Dept of Health",
+                                    "City of Lakeland",
+                                    "City of Plant City",
+                                    "City of St Petersburg",
+                                    "Div of Env Health, Bureau of Water Prgms",
+                                    "Env Protection Comm of Hillsborough Cty",
+                                    "FLDEP, SW District",
+                                    "FLDEP",
+                                    "FLDEP",
+                                    "Manatee County Parks & Nat Res Dept",
+                                    "Pasco County Stormwater Management Div",
+                                    "Pinellas Cty Dept of Env Management",
+                                    "Polk County Nat Res Div",
+                                    "SMR Communities Inc",
+                                    "SWFWMD"))
+
+fib_tb <- left_join(fib_tb, short_names) |> 
+    mutate(shortName = case_when(is.na(shortName) ~ OrgName,
+                                 .default = shortName))
+
+fib_toMap <- left_join(fib_toMap, short_names) |> 
+    mutate(shortName = case_when(is.na(shortName) ~ OrgName,
+                                 .default = shortName))
+```
 
 
 # Maps  
@@ -183,7 +212,7 @@ mapview(bay_segs,
             col.regions = wbclass_cols,
             layer.name = "Water body class") +
     mapview(fib_toMap,
-            zcol = "OrgName",
+            zcol = "shortName",
             col.regions = org_cols,
             layer.name = "Provider",
             hide = TRUE)
@@ -375,6 +404,8 @@ fib_bayseg_long2 |>
 ## By Provider  
 
 ```{r, fig.height = 5, fig.width = 12}
+#| out-width: 100%
+
 # hacky, but it works. turn 0s into NAs and use the na color option
 # in scale_fill_viridis to make the 0s gray.
 
