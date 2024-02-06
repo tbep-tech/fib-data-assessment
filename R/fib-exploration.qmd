@@ -150,7 +150,7 @@ fib_stnInfo <- fib_toMap |>
 # those are either outside the area
 # or they didn't have lat/longs at all in the original data
 fib_tb <- left_join(fib_samps, fib_stnInfo,
-                        by = c("SampleStation", "Lat", "Long")) |> 
+                        by = c("SampleStation", "OrgName", "Lat", "Long")) |> 
     filter(!is.na(Bay.Segment)) 
 ```
 
@@ -179,14 +179,9 @@ mapview(bay_segs,
             label = "WBID",
             hide = TRUE) +
     mapview(fib_toMap,
-            zcol = "Water.Type",
-            col.regions = wbtype_cols,
-            layer.name = "Water body type") +
-    mapview(fib_toMap,
             zcol = "Class",
             col.regions = wbclass_cols,
-            layer.name = "Water body class",
-            hide = TRUE) +
+            layer.name = "Water body class") +
     mapview(fib_toMap,
             zcol = "OrgName",
             col.regions = org_cols,
@@ -309,59 +304,96 @@ all_months_provs <- expand.grid(Date = all_months,
 ```
 
 
-## Fecal Coliform  
-
 ```{r}
 # summarize # samples by bay segment
 fib_monthly_bayseg <- fib_temporal |> 
     mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
     summarize(.by = c(Bay.Segment, Date),
-              FC = sum(CharacteristicName == "Fecal Coliform"),
-              Entero = sum(CharacteristicName == "Enterococcus"),
-              Ecoli = sum(CharacteristicName == "Escherichia coli"))
+              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
+              Enterococcus = sum(CharacteristicName == "Enterococcus"),
+              E.coli = sum(CharacteristicName == "Escherichia coli"))
 
 # join to all dates and fill in NAs with 0s
 fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs)
-fib_monthly_bayseg[c("FC", "Entero", "Ecoli")][is.na(fib_monthly_bayseg[c("FC", "Entero", "Ecoli")])] <- 0
+fib_monthly_bayseg[3:5][is.na(fib_monthly_bayseg[3:5])] <- 0
 
 
 # do the same for providers
 fib_monthly_provider <- fib_temporal |> 
     mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
     summarize(.by = c(OrgName, Date),
-              FC = sum(CharacteristicName == "Fecal Coliform"),
-              Entero = sum(CharacteristicName == "Enterococcus"),
-              Ecoli = sum(CharacteristicName == "Escherichia coli"))
+              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
+              Enterococcus = sum(CharacteristicName == "Enterococcus"),
+              E.coli = sum(CharacteristicName == "Escherichia coli"))
 fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs)
-fib_monthly_provider[c("FC", "Entero", "Ecoli")][is.na(fib_monthly_provider[c("FC", "Entero", "Ecoli")])] <- 0
+fib_monthly_provider[3:5][is.na(fib_monthly_provider[3:5])] <- 0
     
 ```
 
 
-Really want to expand the date grid to get all months for all segments; would be nice to make 0 a different color from the rest of the scale
+
 
 ```{r}
-fib_monthly_bayseg |> 
+fib_bayseg_long <- fib_monthly_bayseg |> 
+    pivot_longer(3:5, names_to = "Indicator",
+                 values_to = "Count")
+```
+
+
+```{r, fig.height = 6, fig.width = 10}
+fib_provider_long <- fib_monthly_provider |> 
+    pivot_longer(3:5, names_to = "Indicator",
+                 values_to = "Count")
+```
+
+## By Bay Segment  
+
+```{r, fig.height = 6, fig.width = 10}
+# hacky, but it works. turn 0s into NAs and use the na color option
+# in scale_fill_viridis to make the 0s gray.
+
+fib_bayseg_long2 <- fib_bayseg_long |> 
+    mutate(Count = case_when(Count == 0 ~ NA_real_,
+                             .default = Count))
+
+fib_bayseg_long2 |> 
     ggplot() +
-    geom_tile(aes(x = Date, y = Bay.Segment, fill = FC)) +
-    scale_fill_viridis_c(direction = -1) +
+    geom_tile(aes(x = Date, y = Bay.Segment, fill = Count),
+              na.rm = FALSE) +
+    scale_fill_viridis_c(direction = -1,
+                         na.value = "gray") +
+    facet_wrap(~Indicator, ncol = 3) +
     labs(x = "",
          y = "",
          fill = "# Samples",
-         title = "Fecal Coliform Temporal Coverage")
+         title = "Sampling Coverage by Bay Segment") +
+    theme(legend.position = "top",
+          legend.justification = "left")
 ```
 
 
 ## By Provider  
 
-```{r}
-fib_monthly_provider |> 
+```{r, fig.height = 5, fig.width = 12}
+# hacky, but it works. turn 0s into NAs and use the na color option
+# in scale_fill_viridis to make the 0s gray.
+
+fib_provider_long2 <- fib_provider_long |> 
+    mutate(Count = case_when(Count == 0 ~ NA_real_,
+                             .default = Count))
+
+fib_provider_long2 |> 
     ggplot() +
-    geom_tile(aes(x = Date, y = OrgName, fill = FC)) +
-    scale_fill_viridis_c(direction = -1) +
+    geom_tile(aes(x = Date, y = OrgName, fill = Count),
+              na.rm = FALSE) +
+    scale_fill_viridis_c(direction = -1,
+                         na.value = "gray") +
+    facet_wrap(~Indicator, ncol = 3) +
     labs(x = "",
          y = "",
          fill = "# Samples",
-         title = "Fecal Coliform Temporal Coverage by Provider")
+         title = "Sampling Coverage by Provider") +
+    theme(legend.position = "top",
+          legend.justification = "left")
 ```
 
