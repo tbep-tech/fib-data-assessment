@@ -59,12 +59,24 @@ The pre-processing reduced the file size from 167MB to 40MB, and the smaller fil
 fib_samps <- read.csv(here::here("data-WQP", "biological_reduced.csv")) |> 
     filter(CharacteristicName %in% c("Fecal Coliform", "Enterococcus", "Escherichia coli"))
 
+fibs_wide <- fib_samps |> 
+    mutate(SampleYear = lubridate::year(lubridate::ymd(SampleDate))) |> 
+    select(OrgID, OrgName,  
+           SampleStation, Lat, Long,
+           CharacteristicName,
+           SampleYear) |> 
+    summarize(.by = OrgID:CharacteristicName,
+              first = min(SampleYear, na.rm = TRUE),
+              last = max(SampleYear, na.rm = TRUE)) |> 
+    mutate(Years = paste(first, last, sep = " - ")) |> 
+    select(-first, -last) |> 
+    pivot_wider(names_from = CharacteristicName,
+                values_from = Years,
+                values_fill = "not sampled")
+
 # pull out distinct lat longs to intersect with other mapping layers
 # keep these for later joining
-fib_latlongs <- fib_samps |> 
-    select(SampleStation,
-           Lat,
-           Long) |> 
+fib_latlongs <- fibs_wide |> 
     distinct() |> 
     na.omit()        
 # note - 252 rows were removed by na.omit - 
@@ -76,19 +88,22 @@ fib_toMap <- fib_latlongs |>
     st_as_sf(coords = c("Long", "Lat"),
              crs = "WGS84") |>              # WGS84 is default for handheld GPS units
     st_transform(crs = to_crs) |> 
-    cbind(fib_latlongs) |> 
-    select(-SampleStation.1)
+    cbind(fib_latlongs[c("Lat", "Long")])
 
 
 # only grab stations that intersect with our polygon layers of interest
 # already intersected wbids with bay_segs, so only need the one here
 fib_toMap <- st_intersection(fib_toMap, wbids)  |> 
     select(SampleStation,
+           OrgName,
            Lat, Long,
            Bay.Segment = BAY_SEG,
            Water.Body.Name = WATERBODY_,
            Water.Type = WATER_TYPE,
            Class = CLASS,
+           Fecal.Coliform,
+           Enterococcus,
+           Escherichia.coli,
            HUC,
            WBID)
 ```
@@ -139,12 +154,50 @@ fib_tb <- left_join(fib_samps, fib_stnInfo,
     filter(!is.na(Bay.Segment)) 
 ```
 
+
+
 # Maps  
 
+```{r map-color-setup}
+# so it won't default to dark background when cyan is the first color used
+mapviewOptions(basemaps.color.shuffle = FALSE) 
 
+# Tol color palettes: https://packages.tesselle.org/khroma/articles/tol.html#qualitative-data
+map_colors <- color("pale")(6)
+qual_cols <- color("muted")(7)
+wbtype_cols <- color("muted")(5)
+wbclass_cols <- color("muted")(4)
+org_cols <- color("sunset")(length(unique(fib_toMap$OrgName)))
+```
+
+```{r}
+mapview(bay_segs,
+        col.regions = map_colors[4],
+        label = "BAY_SEG") +
+    mapview(wbids,
+            col.regions = map_colors[2],
+            label = "WBID",
+            hide = TRUE) +
+    mapview(fib_toMap,
+            zcol = "Water.Type",
+            col.regions = wbtype_cols,
+            layer.name = "Water body type") +
+    mapview(fib_toMap,
+            zcol = "Class",
+            col.regions = wbclass_cols,
+            layer.name = "Water body class",
+            hide = TRUE) +
+    mapview(fib_toMap,
+            zcol = "OrgName",
+            col.regions = org_cols,
+            layer.name = "Provider",
+            hide = TRUE)
+```
 
 
 # Tabular Summaries  
+
+The following tables only include information about Estuarine/Marine sampling stations; Classes 2 or 3M in the WBID shapefile.  
 
 ```{r}
 fib_temporal <- fib_tb |> 
@@ -155,28 +208,12 @@ fib_temporal <- fib_tb |>
            Year = lubridate::year(SampleDate),
            Month = lubridate::month(SampleDate)) |> 
     distinct()    # eliminate duplicate samples for an individual fib from a station on a date
-    # mutate(sampled = "yes") |> 
-    # pivot_wider(names_from = CharacteristicName,
-    #             values_from = sampled,
-    #             values_fill = "no") # |> 
-    # left_join(fib_combos)
-```
 
-## Any FIB by Bay Segment
-
-```{r}
-fib_temporal |> 
-    summarize(.by = Bay.Segment,
-              nProviders = length(unique(OrgName)),
-              nStations = length(unique(SampleStation)),
-              nYears = length(unique(Year)),
-              earliest = min(Year),
-              mostRecent = max(Year)) |> 
-    gt::gt()
 ```
 
 
-## By FIB x Bay Segment, Estuarine only  
+
+## By Bay Segment  
 
 ```{r}
 fib_est_wide <- fib_temporal |> 
@@ -186,7 +223,7 @@ fib_est_wide <- fib_temporal |>
               nStations = length(unique(SampleStation)),
               earliest = min(Year),
               mostRecent = max(Year)) |>
-    mutate(years = paste(earliest, mostRecent, sep = " - ")) |> 
+    mutate(years = paste(earliest, mostRecent, sep = "- ")) |> 
     select(-earliest, -mostRecent) |> 
     pivot_wider(id_cols = Bay.Segment,
                 names_from = CharacteristicName,
@@ -202,18 +239,18 @@ kbl(fib_est_wide,
     col.names = c("Bay Segment",
                   rep(c("# Providers", "# Stations",
                         "Years"), times = 3)),
-    booktabs = TRUE,
     align = c("l", rep("c", 9))) |> 
-    kable_styling("striped", full_width = FALSE) |> 
+    kable_styling("striped", full_width = TRUE) |> 
     add_header_above(c("", 
                        "Fecal Coliform" = 3,
                        "Enterococcus" = 3,
                        "E. coli" = 3)) |> 
     column_spec(c(1, 4, 7), border_right = TRUE,
-                extra_css = "border-right:2px solid lightgrey;")
+                extra_css = "border-right:2px solid lightgrey;") |> 
+    column_spec(1, width_min = "2in")
 ```
 
-## By Provider x Bay Segment
+## By Provider
 
 ```{r}
 fib_est_providers <- fib_temporal |> 
@@ -247,8 +284,84 @@ kbl(fib_est_providers[2:ncol(fib_est_providers)],
                        "E. coli" = 2)) |> 
     column_spec(c(1, 3, 5), border_right = TRUE,
                 extra_css = "border-right:2px solid lightgrey;") |> 
-    column_spec(1, width_min = "3in") |> 
+    column_spec(1, width_min = "2.5in") |> 
     pack_rows(index = table(fib_est_providers$Bay.Segment)) |> 
-    scroll_box(height = "600px")
+    scroll_box(height = "6in")
+```
+
+
+# Temporal Heatmaps  
+
+```{r}
+# generate a full grid by bay segment and month
+# fib_temporal is already filtered to estuarine only, with WBID assignments
+all_months <- seq.Date(from = min(lubridate::ymd(paste(fib_temporal$Year, fib_temporal$Month, "15"))), 
+                       to = max(lubridate::ymd(paste(fib_temporal$Year, fib_temporal$Month, "15"))),
+                       by = "months")
+
+all_months_baysegs <- expand.grid(Date = all_months, 
+                          Bay.Segment = unique(fib_temporal$Bay.Segment))
+
+
+# do the same for providers
+all_months_provs <- expand.grid(Date = all_months,
+                                OrgName = unique(fib_temporal$OrgName))
+```
+
+
+## Fecal Coliform  
+
+```{r}
+# summarize # samples by bay segment
+fib_monthly_bayseg <- fib_temporal |> 
+    mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
+    summarize(.by = c(Bay.Segment, Date),
+              FC = sum(CharacteristicName == "Fecal Coliform"),
+              Entero = sum(CharacteristicName == "Enterococcus"),
+              Ecoli = sum(CharacteristicName == "Escherichia coli"))
+
+# join to all dates and fill in NAs with 0s
+fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs)
+fib_monthly_bayseg[c("FC", "Entero", "Ecoli")][is.na(fib_monthly_bayseg[c("FC", "Entero", "Ecoli")])] <- 0
+
+
+# do the same for providers
+fib_monthly_provider <- fib_temporal |> 
+    mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
+    summarize(.by = c(OrgName, Date),
+              FC = sum(CharacteristicName == "Fecal Coliform"),
+              Entero = sum(CharacteristicName == "Enterococcus"),
+              Ecoli = sum(CharacteristicName == "Escherichia coli"))
+fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs)
+fib_monthly_provider[c("FC", "Entero", "Ecoli")][is.na(fib_monthly_provider[c("FC", "Entero", "Ecoli")])] <- 0
+    
+```
+
+
+Really want to expand the date grid to get all months for all segments; would be nice to make 0 a different color from the rest of the scale
+
+```{r}
+fib_monthly_bayseg |> 
+    ggplot() +
+    geom_tile(aes(x = Date, y = Bay.Segment, fill = FC)) +
+    scale_fill_viridis_c(direction = -1) +
+    labs(x = "",
+         y = "",
+         fill = "# Samples",
+         title = "Fecal Coliform Temporal Coverage")
+```
+
+
+## By Provider  
+
+```{r}
+fib_monthly_provider |> 
+    ggplot() +
+    geom_tile(aes(x = Date, y = OrgName, fill = FC)) +
+    scale_fill_viridis_c(direction = -1) +
+    labs(x = "",
+         y = "",
+         fill = "# Samples",
+         title = "Fecal Coliform Temporal Coverage by Provider")
 ```
 
