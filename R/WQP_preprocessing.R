@@ -23,6 +23,8 @@ fib_reduced <- fib_samps |>
                                      "Enterococcus",
                                      "Escherichia coli"))
 
+saveRDS(fib_reduced, file = here::here("data-WQP", "biological_reduced.rds"))
+
 write.csv(fib_reduced, here::here("data-WQP", "biological_reduced.csv"),
           na = "",
           row.names = FALSE)

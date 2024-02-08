@@ -56,7 +56,7 @@ That download was pre-processed using `R/WQP_preprocessing.R` to:
 The pre-processing reduced the file size from 167MB to 40MB, and the smaller file is used in this document.  
 
 ```{r read-sample-info}
-fib_samps <- read.csv(here::here("data-WQP", "biological_reduced.csv")) |> 
+fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |> 
     filter(CharacteristicName %in% c("Fecal Coliform", "Enterococcus", "Escherichia coli"))
 ```
 
@@ -316,46 +316,55 @@ kbl(fib_est_providers[2:ncol(fib_est_providers)],
 
 # Temporal Heatmaps  
 
-```{r}
-# generate a full grid by bay segment and month
-# fib_temporal is already filtered to estuarine only, with WBID assignments
-all_months <- seq.Date(from = min(lubridate::ymd(paste(fib_temporal$Year, fib_temporal$Month, "15"))), 
-                       to = max(lubridate::ymd(paste(fib_temporal$Year, fib_temporal$Month, "15"))),
-                       by = "months")
 
-all_months_baysegs <- expand.grid(Date = all_months, 
-                          Bay.Segment = unique(fib_temporal$Bay.Segment))
+```{r}
+years <- seq(from = min(fib_temporal$Year), to = max(fib_temporal$Year))
+yearmonths <- expand.grid(years, 1:12)
+names(yearmonths) <- c("Year", "Month")
+
+yearmonths <- yearmonths |> 
+    mutate(YearMonth = zoo::as.yearmon(paste(Year, Month, sep = "-")))
+
+
+
+all_months_baysegs <- expand.grid(YearMonth = yearmonths$YearMonth, 
+                                  Bay.Segment = unique(fib_temporal$Bay.Segment)) |> 
+    left_join(yearmonths, by = "YearMonth")
 
 
 # do the same for providers
-all_months_provs <- expand.grid(Date = all_months,
-                                OrgName = unique(fib_temporal$OrgName))
+all_months_provs <- expand.grid(YearMonth = yearmonths$YearMonth,
+                                OrgName = unique(fib_temporal$OrgName)) |> 
+    left_join(yearmonths, by = "YearMonth")
 ```
+
 
 
 ```{r}
 # summarize # samples by bay segment
 fib_monthly_bayseg <- fib_temporal |> 
-    mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
-    summarize(.by = c(Bay.Segment, Date),
+    summarize(.by = c(Bay.Segment, Year, Month),
               "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
               Enterococcus = sum(CharacteristicName == "Enterococcus"),
-              E.coli = sum(CharacteristicName == "Escherichia coli"))
+              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
+    arrange(Bay.Segment, Year, Month)
 
 # join to all dates and fill in NAs with 0s
-fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs)
-fib_monthly_bayseg[3:5][is.na(fib_monthly_bayseg[3:5])] <- 0
+fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs) |> 
+    relocate(YearMonth, .after = Month)
+fib_monthly_bayseg[5:7][is.na(fib_monthly_bayseg[5:7])] <- 0
 
 
 # do the same for providers
 fib_monthly_provider <- fib_temporal |> 
-    mutate(Date = lubridate::ymd(paste(Year, Month, "15"))) |>
-    summarize(.by = c(OrgName, Date),
+    summarize(.by = c(OrgName, Year, Month),
               "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
               Enterococcus = sum(CharacteristicName == "Enterococcus"),
-              E.coli = sum(CharacteristicName == "Escherichia coli"))
-fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs)
-fib_monthly_provider[3:5][is.na(fib_monthly_provider[3:5])] <- 0
+              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
+    arrange(OrgName, Year, Month)
+fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs) |> 
+    relocate(YearMonth, .after = Month)
+fib_monthly_provider[5:7][is.na(fib_monthly_provider[5:7])] <- 0
     
 ```
 
@@ -364,14 +373,14 @@ fib_monthly_provider[3:5][is.na(fib_monthly_provider[3:5])] <- 0
 
 ```{r}
 fib_bayseg_long <- fib_monthly_bayseg |> 
-    pivot_longer(3:5, names_to = "Indicator",
+    pivot_longer(5:7, names_to = "Indicator",
                  values_to = "Count")
 ```
 
 
 ```{r, fig.height = 6, fig.width = 10}
 fib_provider_long <- fib_monthly_provider |> 
-    pivot_longer(3:5, names_to = "Indicator",
+    pivot_longer(5:7, names_to = "Indicator",
                  values_to = "Count")
 ```
 
@@ -387,7 +396,7 @@ fib_bayseg_long2 <- fib_bayseg_long |>
 
 fib_bayseg_long2 |> 
     ggplot() +
-    geom_tile(aes(x = Date, y = Bay.Segment, fill = Count),
+    geom_tile(aes(x = YearMonth, y = Bay.Segment, fill = Count),
               na.rm = FALSE) +
     scale_fill_viridis_c(direction = -1,
                          na.value = "gray") +
@@ -415,7 +424,7 @@ fib_provider_long2 <- fib_provider_long |>
 
 fib_provider_long2 |> 
     ggplot() +
-    geom_tile(aes(x = Date, y = OrgName, fill = Count),
+    geom_tile(aes(x = YearMonth, y = OrgName, fill = Count),
               na.rm = FALSE) +
     scale_fill_viridis_c(direction = -1,
                          na.value = "gray") +
