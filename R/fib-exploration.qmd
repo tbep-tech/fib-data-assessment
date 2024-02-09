@@ -61,7 +61,7 @@ fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |>
 ```
 
 ```{r modify-sample-info}
-fibs_wide <- fib_samps |> 
+fib_toMap <- fib_samps |> 
     mutate(SampleYear = lubridate::year(lubridate::ymd(SampleDate))) |> 
     select(OrgID, OrgName,  
            SampleStation, Lat, Long,
@@ -74,23 +74,12 @@ fibs_wide <- fib_samps |>
     select(-first, -last) |> 
     pivot_wider(names_from = CharacteristicName,
                 values_from = Years,
-                values_fill = "not sampled")
-
-# pull out distinct lat longs to intersect with other mapping layers
-# keep these for later joining
-fib_latlongs <- fibs_wide |> 
-    distinct() |> 
-    na.omit()        
-# note - 252 rows were removed by na.omit - 
-# that's 252 stations without lat/longs
-
-
-# turn the lat/longs into an sf object
-fib_toMap <- fib_latlongs |> 
+                values_fill = "not sampled") |> 
+    na.omit() |>                   # removes 252 stations without lat/longs
     st_as_sf(coords = c("Long", "Lat"),
-             crs = "WGS84") |>              # WGS84 is default for handheld GPS units
-    st_transform(crs = to_crs) |> 
-    cbind(fib_latlongs[c("Lat", "Long")])
+             crs = "WGS84",
+             remove = FALSE) |>    # WGS84 is default for handheld GPS units
+    st_transform(crs = to_crs) 
 
 
 # only grab stations that intersect with our polygon layers of interest
@@ -112,19 +101,18 @@ fib_toMap <- st_intersection(fib_toMap, wbids)  |>
 
 ```{r wbid-dupes}
 # there are 9 sites with two associated WBIDS, due to various
-# changes between runs. This causes joining problems
+# changes between runs. This causes joining problems.
 # doesn't matter which we keep for summary tables
 # because the changes are WBID, Water Body Name, and Class -
-# but always either 2 or 3M, both of which we'll keep for summaries
+# but always either 2 or 3M, both of which we'll keep for summaries.
 
 # will keep them in the main mapping group, in case the individual 
-# WBIDs matter to TBEP in the future
-
-# but for other summarizing, want only one WBID per station
-# doesn't matter which
+# WBIDs matter to TBEP in the future.
+# but for other summarizing, want only one WBID per station -
+# doesn't matter which. so just keep the first.
 
 # identify dupes - this df contains all WBID info too
-# should you want to stop and investigate
+# should anyone want to stop and investigate them.
 dupes <- st_drop_geometry(fib_toMap) |>
     janitor::get_dupes(SampleStation, Lat, Long)
 
@@ -136,6 +124,7 @@ dupes <- dupes |>
     select(SampleStation, Lat, Long, WBID, duplicated)
 
 # join to fib_toMap and get rid of the rows identified as duplicates
+# drop geometry so we can make fun tables
 fib_stnInfo <- fib_toMap |> 
     left_join(dupes, by = c("SampleStation", "Lat", "Long", "WBID")) |> 
     mutate(duplicated = case_when(is.na(duplicated) ~ FALSE,
@@ -143,6 +132,11 @@ fib_stnInfo <- fib_toMap |>
     filter(duplicated == FALSE) |> 
     select(-duplicated) |> 
     st_drop_geometry()
+
+
+# go ahead and drop Lat and Long from fib_toMap because we don't need them
+# to show up
+fib_toMap <- select(fib_toMap, -Lat, -Long)
 ```
 
 ```{r join-fibsamps-wbidinfo}
@@ -163,20 +157,20 @@ short_names <- tibble(OrgName = sort(unique(fib_tb$OrgName)),
                                     "City of Lakeland",
                                     "City of Plant City",
                                     "City of St Petersburg",
-                                    "Div of Env Health, Bureau of Water Prgms",
-                                    "Env Protection Comm of Hillsborough Cty",
+                                    "Div of Env Health, Bur Water Prgms",
+                                    "Hillsborough Cty Env Prot Comm",
                                     "FLDEP, SW District",
                                     "FLDEP",
                                     "FLDEP",
-                                    "Manatee County Parks & Nat Res Dept",
-                                    "Pasco County Stormwater Management Div",
-                                    "Pinellas Cty Dept of Env Management",
-                                    "Polk County Nat Res Div",
+                                    "Manatee Cty Parks & Nat Res Dept",
+                                    "Pasco Cty Stormwater Mgmt Div",
+                                    "Pinellas Cty Dept of Env Mgmt",
+                                    "Polk Cty Nat Res Div",
                                     "SMR Communities Inc",
                                     "SWFWMD"))
 
 fib_tb <- left_join(fib_tb, short_names) |> 
-    mutate(shortName = case_when(is.na(shortName) ~ OrgName,
+    mutate(shortName = case_when(is.na(shortName) ~ OrgName,  # just in case, even though it should throw an error if something's wrong
                                  .default = shortName))
 
 fib_toMap <- left_join(fib_toMap, short_names) |> 
@@ -188,7 +182,7 @@ fib_toMap <- left_join(fib_toMap, short_names) |>
 # Maps  
 
 ```{r map-color-setup}
-# so it won't default to dark background when cyan is the first color used
+# so maps won't default to dark background when cyan is the first color used
 mapviewOptions(basemaps.color.shuffle = FALSE) 
 
 # Tol color palettes: https://packages.tesselle.org/khroma/articles/tol.html#qualitative-data
@@ -197,7 +191,16 @@ qual_cols <- color("muted")(7)
 wbtype_cols <- color("muted")(5)
 wbclass_cols <- color("muted")(4)
 org_cols <- color("sunset")(length(unique(fib_toMap$OrgName)))
+
+# sampling org colors
+# building in flexibility in case there are more than 7 someday
+n_est_orgs <- fib_toMap |> filter(Class %in% c("2", "3M")) |> st_drop_geometry() |>  select(OrgName) |> distinct() |> nrow()
+if(n_est_orgs <=9){
+    est_org_cols <- color("muted")(n_est_orgs)
+    } else {est_org_cols <- color("sunset")(n_est_orgs)}
 ```
+
+## All stations in TBEP boundary  
 
 ```{r}
 mapview(bay_segs,
@@ -216,6 +219,38 @@ mapview(bay_segs,
             col.regions = org_cols,
             layer.name = "Provider",
             hide = TRUE)
+```
+
+
+## All vs. Estuarine/Marine Only   
+
+Filtering by Class, to be either 2 or 3M  
+
+```{r}
+mapview(filter(fib_toMap, Class %in% c("2", "3M")),
+            zcol = "Class",
+            col.regions = color("muted")(2),
+            layer.name = "Estuarine Only") +
+    mapview(fib_toMap,
+            zcol = "Class",
+            col.regions = wbclass_cols,
+            layer.name = "All")
+```
+
+## Estuarine/Marine Only  
+
+```{r}
+mapview(bay_segs,
+        col.regions = map_colors[4],
+        label = "BAY_SEG") +
+    mapview(wbids,
+            col.regions = map_colors[2],
+            label = "WBID",
+            hide = TRUE) +
+    mapview(filter(fib_toMap, Class %in% c("2", "3M")),
+            zcol = "shortName",
+            col.regions = est_org_cols,
+            layer.name = "Provider")
 ```
 
 
@@ -412,7 +447,7 @@ fib_bayseg_long2 |>
 
 ## By Provider  
 
-```{r, fig.height = 5, fig.width = 12}
+```{r, fig.height = 7, fig.width = 14}
 #| out-width: 100%
 
 # hacky, but it works. turn 0s into NAs and use the na color option
