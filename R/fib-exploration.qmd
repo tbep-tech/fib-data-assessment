@@ -213,6 +213,12 @@ all_months_baysegs <- expand.grid(YearMonth = yearmonths$YearMonth,
 all_months_provs <- expand.grid(YearMonth = yearmonths$YearMonth,
                                 OrgNameShort = unique(fib_temporal$OrgNameShort)) |> 
     left_join(yearmonths, by = "YearMonth")
+
+# and provider x bayseg
+all_months_providers_baysegs <- expand.grid(YearMonth = yearmonths$YearMonth, 
+                                  Bay.Segment = unique(fib_temporal$Bay.Segment),
+                                  OrgNameShort = unique(fib_temporal$OrgNameShort)) |> 
+    left_join(yearmonths, by = "YearMonth")
 ```
 
 
@@ -241,7 +247,19 @@ fib_monthly_provider <- fib_temporal |>
 fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs) |> 
     relocate(YearMonth, .after = Month)
 fib_monthly_provider[5:7][is.na(fib_monthly_provider[5:7])] <- 0
-    
+
+
+# and provider x baysegment  
+fib_monthly_provider_bayseg <- fib_temporal |> 
+    summarize(.by = c(OrgNameShort, Bay.Segment, Year, Month),
+              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
+              Enterococcus = sum(CharacteristicName == "Enterococcus"),
+              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
+    arrange(Bay.Segment, OrgNameShort, Year, Month)
+fib_monthly_provider_bayseg <- full_join(fib_monthly_provider_bayseg, all_months_providers_baysegs) |> 
+    relocate(YearMonth, .after = Month)
+fib_monthly_provider_bayseg[6:8][is.na(fib_monthly_provider_bayseg[6:8])] <- 0
+
 ```
 
 
@@ -249,12 +267,13 @@ fib_monthly_provider[5:7][is.na(fib_monthly_provider[5:7])] <- 0
 fib_bayseg_long <- fib_monthly_bayseg |> 
     pivot_longer(5:7, names_to = "Indicator",
                  values_to = "Count")
-```
 
-
-```{r}
 fib_provider_long <- fib_monthly_provider |> 
     pivot_longer(5:7, names_to = "Indicator",
+                 values_to = "Count")
+
+fib_provider_bayseg_long <- fib_monthly_provider_bayseg |> 
+    pivot_longer(6:8, names_to = "Indicator",
                  values_to = "Count")
 ```
 
@@ -344,6 +363,45 @@ p <- p +
 ggplotly(p)
 ```
 
+## Enterococcus: Provider x BaySeg
+
+```{r, fig.height = 10, fig.width = 8}
+# hacky, but it works. turn 0s into NAs and use the na color option
+# in scale_fill_viridis to make the 0s gray.
+
+fib_provider_bayseg_long2 <- fib_provider_bayseg_long |> 
+    mutate(Count = case_when(Count == 0 ~ NA_real_,
+                             .default = Count))
+
+p <- fib_provider_bayseg_long2 |> 
+    filter(Indicator == "Enterococcus") |> 
+    ggplot() +
+    geom_tile(aes(x = YearMonth, y = OrgNameShort, fill = Count),
+              na.rm = FALSE) +
+    scale_fill_distiller(palette = "GnBu",
+                         direction = -1,
+                         na.value = "gray70") +
+    facet_wrap(~Bay.Segment, ncol = 2) +
+    labs(x = "",
+         y = "",
+         fill = "# Samples",
+         title = "Enterococcus Sampling Coverage by Bay Segment and Provider")
+
+p <- p +
+    theme_bw() +
+    theme(panel.background = element_rect(fill = "gray70",
+                                colour = "gray70"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(size = rel(0.9),
+                                     angle = 40,
+                                     hjust = 1,
+                                     vjust = 1),
+          axis.text.y = element_text(size = rel(0.9)),
+          legend.position = "top",
+          legend.justification = "left")
+ggplotly(p)
+```
 
 
 # Maps  
@@ -443,6 +501,7 @@ fc_toMap <-
 ```
 
 ```{r}
+
 mapview(filter(fc_toMap, latest >= yrsplit),
             layer.name = paste0("FC Stations sampled since ", yrsplit),
             hide = FALSE) +
