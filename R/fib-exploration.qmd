@@ -5,7 +5,7 @@ format:
         fig-width: 7
         fig-height: 7
         toc: true
-embed-resources: true
+embed-resources: false
 execute:
     echo: false
     message: false
@@ -20,6 +20,7 @@ library(mapview)
 library(khroma) # for colorblind-friendly color palettes
 library(tbeptools)
 library(kableExtra)
+library(plotly)
 ```
 
 ```{r read-shapefiles}
@@ -157,7 +158,7 @@ short_names <- tibble(OrgName = sort(unique(fib_tb$OrgName)),
                                     "City of Lakeland",
                                     "City of Plant City",
                                     "City of St Petersburg",
-                                    "Div of Env Health, Bur Water Prgms",
+                                    "DOH Div of Env Health",
                                     "Hillsborough Cty Env Prot Comm",
                                     "FLDEP, SW District",
                                     "FLDEP",
@@ -177,6 +178,172 @@ fib_toMap <- left_join(fib_toMap, short_names) |>
     mutate(shortName = case_when(is.na(shortName) ~ OrgName,
                                  .default = shortName))
 ```
+
+```{r create-fib-temporal}
+fib_temporal <- fib_tb |> 
+    select(SampleDate, OrgName, 
+           OrgNameShort = shortName,
+           SampleStation, 
+           Lat, Long, CharacteristicName,
+           Bay.Segment, Class, WBID) |> 
+    filter(Class %in% c("2", "3M")) |> 
+    mutate(SampleDate = lubridate::ymd(SampleDate),
+           Year = lubridate::year(SampleDate),
+           Month = lubridate::month(SampleDate)) |> 
+    distinct()    # eliminate duplicate samples for an individual fib from a station on a date
+
+```
+
+```{r}
+years <- seq(from = min(fib_temporal$Year), to = max(fib_temporal$Year))
+yearmonths <- expand.grid(years, 1:12)
+names(yearmonths) <- c("Year", "Month")
+
+yearmonths <- yearmonths |> 
+    mutate(YearMonth = zoo::as.yearmon(paste(Year, Month, sep = "-")))
+
+
+
+all_months_baysegs <- expand.grid(YearMonth = yearmonths$YearMonth, 
+                                  Bay.Segment = unique(fib_temporal$Bay.Segment)) |> 
+    left_join(yearmonths, by = "YearMonth")
+
+
+# do the same for providers
+all_months_provs <- expand.grid(YearMonth = yearmonths$YearMonth,
+                                OrgNameShort = unique(fib_temporal$OrgNameShort)) |> 
+    left_join(yearmonths, by = "YearMonth")
+```
+
+
+```{r}
+# summarize # samples by bay segment
+fib_monthly_bayseg <- fib_temporal |> 
+    summarize(.by = c(Bay.Segment, Year, Month),
+              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
+              Enterococcus = sum(CharacteristicName == "Enterococcus"),
+              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
+    arrange(Bay.Segment, Year, Month)
+
+# join to all dates and fill in NAs with 0s
+fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs) |> 
+    relocate(YearMonth, .after = Month)
+fib_monthly_bayseg[5:7][is.na(fib_monthly_bayseg[5:7])] <- 0
+
+
+# do the same for providers
+fib_monthly_provider <- fib_temporal |> 
+    summarize(.by = c(OrgNameShort, Year, Month),
+              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
+              Enterococcus = sum(CharacteristicName == "Enterococcus"),
+              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
+    arrange(OrgNameShort, Year, Month)
+fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs) |> 
+    relocate(YearMonth, .after = Month)
+fib_monthly_provider[5:7][is.na(fib_monthly_provider[5:7])] <- 0
+    
+```
+
+
+```{r}
+fib_bayseg_long <- fib_monthly_bayseg |> 
+    pivot_longer(5:7, names_to = "Indicator",
+                 values_to = "Count")
+```
+
+
+```{r}
+fib_provider_long <- fib_monthly_provider |> 
+    pivot_longer(5:7, names_to = "Indicator",
+                 values_to = "Count")
+```
+
+
+
+
+# Temporal Heatmaps  
+
+For 2 & 3M Classes, within the TBEP boundaries, only.  
+
+
+## By Bay Segment  
+
+```{r, fig.height = 6, fig.width = 10}
+# hacky, but it works. turn 0s into NAs and use the na color option
+# in scale_fill_viridis to make the 0s gray.
+
+fib_bayseg_long2 <- fib_bayseg_long |> 
+    mutate(Count = case_when(Count == 0 ~ NA_real_,
+                             .default = Count))
+
+p <- fib_bayseg_long2 |> 
+    ggplot() +
+    geom_tile(aes(x = YearMonth, y = Bay.Segment, fill = Count),
+              na.rm = FALSE) +
+    scale_fill_distiller(palette = "GnBu",
+                         direction = -1,
+                         na.value = "gray70") +
+    facet_wrap(~Indicator, ncol = 3) +
+    labs(x = "",
+         y = "",
+         fill = "# Samples",
+         title = "Sampling Coverage by Bay Segment")
+
+p <- p +
+    theme_bw() +
+    theme(panel.background = element_rect(fill = "gray70",
+                                colour = "gray70"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(size = rel(0.9),
+                                     angle = 40,
+                                     hjust = 1,
+                                     vjust = 1),
+          legend.position = "top",
+          legend.justification = "left")
+
+ggplotly(p)
+```
+
+
+## By Provider  
+
+```{r, fig.height = 6, fig.width = 10}
+# hacky, but it works. turn 0s into NAs and use the na color option
+# in scale_fill_viridis to make the 0s gray.
+
+fib_provider_long2 <- fib_provider_long |> 
+    mutate(Count = case_when(Count == 0 ~ NA_real_,
+                             .default = Count))
+
+p <- fib_provider_long2 |> 
+    ggplot() +
+    geom_tile(aes(x = YearMonth, y = OrgNameShort, fill = Count),
+              na.rm = FALSE) +
+    scale_fill_distiller(palette = "GnBu",
+                         direction = -1,
+                         na.value = "gray70") +
+    facet_wrap(~Indicator, ncol = 3) +
+    labs(x = "",
+         y = "",
+         fill = "# Samples",
+         title = "Sampling Coverage by Provider")
+
+p <- p +
+    theme_bw() +
+    theme(panel.background = element_rect(fill = "gray70",
+                                colour = "gray70"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(size = rel(0.9),
+                                     angle = 40,
+                                     hjust = 1,
+                                     vjust = 1),
+          legend.position = "top",
+          legend.justification = "left")
+ggplotly(p)
+```
+
 
 
 # Maps  
@@ -254,21 +421,51 @@ mapview(bay_segs,
 ```
 
 
+## Timing by Indicator, Estuarine/Marine only  
+
+```{r}
+yrsplit <- 2018
+tslengthsplit <- 5
+
+col_scale_divs <- 5  # will actually be one category fewer than this, because of the sequence endpoints
+```
+
+```{r}
+fc_toMap <- 
+    fib_toMap |> 
+    select(SampleStation, OrgName, Water.Type, Class,
+           Indicator = Fecal.Coliform) |> 
+    filter(Indicator != "not sampled",
+           Class %in% c("2", "3M")) |> 
+    separate(Indicator, into = c("start", "latest"), sep = " - ") |> 
+    mutate(across(c(start, latest), as.numeric),
+           tslength = latest - start)
+```
+
+```{r}
+mapview(filter(fc_toMap, latest >= yrsplit),
+            layer.name = paste0("FC Stations sampled since ", yrsplit),
+            hide = FALSE) +
+    mapview(fc_toMap,
+        zcol = "latest",
+        at = seq(min(fc_toMap$latest), max(fc_toMap$latest), length.out = col_scale_divs),
+        col.regions = viridis::viridis(n = col_scale_divs, direction = -1),
+        layer.name = "All FC Stations by latest sample year",
+        hide = TRUE) +
+    mapview(fc_toMap,
+        zcol = "tslength",
+        at = seq(min(fc_toMap$tslength), max(fc_toMap$tslength), length.out = col_scale_divs),
+        col.regions = viridis::viridis(n = col_scale_divs, direction = -1),  # n should be the same as length.out in the at seq() above
+        layer.name = "All FC Stations by time series length",
+        hide = TRUE)
+
+```
+
+
 # Tabular Summaries  
 
 The following tables only include information about Estuarine/Marine sampling stations; Classes 2 or 3M in the WBID shapefile.  
 
-```{r}
-fib_temporal <- fib_tb |> 
-    select(SampleDate, OrgName, SampleStation, 
-           Lat, Long, CharacteristicName,
-           Bay.Segment, Class, WBID) |> 
-    mutate(SampleDate = lubridate::ymd(SampleDate),
-           Year = lubridate::year(SampleDate),
-           Month = lubridate::month(SampleDate)) |> 
-    distinct()    # eliminate duplicate samples for an individual fib from a station on a date
-
-```
 
 
 
@@ -276,7 +473,6 @@ fib_temporal <- fib_tb |>
 
 ```{r}
 fib_est_wide <- fib_temporal |> 
-    filter(Class %in% c("2", "3M")) |> 
     summarize(.by = c(CharacteristicName, Bay.Segment),
               nProviders = length(unique(OrgName)),
               nStations = length(unique(SampleStation)),
@@ -313,7 +509,6 @@ kbl(fib_est_wide,
 
 ```{r}
 fib_est_providers <- fib_temporal |> 
-    filter(Class %in% c("2", "3M")) |> 
     summarize(.by = c(CharacteristicName, Bay.Segment, OrgName),
               nStations = length(unique(SampleStation)),
               earliest = min(Year),
@@ -349,126 +544,4 @@ kbl(fib_est_providers[2:ncol(fib_est_providers)],
 ```
 
 
-# Temporal Heatmaps  
-
-
-```{r}
-years <- seq(from = min(fib_temporal$Year), to = max(fib_temporal$Year))
-yearmonths <- expand.grid(years, 1:12)
-names(yearmonths) <- c("Year", "Month")
-
-yearmonths <- yearmonths |> 
-    mutate(YearMonth = zoo::as.yearmon(paste(Year, Month, sep = "-")))
-
-
-
-all_months_baysegs <- expand.grid(YearMonth = yearmonths$YearMonth, 
-                                  Bay.Segment = unique(fib_temporal$Bay.Segment)) |> 
-    left_join(yearmonths, by = "YearMonth")
-
-
-# do the same for providers
-all_months_provs <- expand.grid(YearMonth = yearmonths$YearMonth,
-                                OrgName = unique(fib_temporal$OrgName)) |> 
-    left_join(yearmonths, by = "YearMonth")
-```
-
-
-
-```{r}
-# summarize # samples by bay segment
-fib_monthly_bayseg <- fib_temporal |> 
-    summarize(.by = c(Bay.Segment, Year, Month),
-              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
-              Enterococcus = sum(CharacteristicName == "Enterococcus"),
-              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
-    arrange(Bay.Segment, Year, Month)
-
-# join to all dates and fill in NAs with 0s
-fib_monthly_bayseg <- full_join(fib_monthly_bayseg, all_months_baysegs) |> 
-    relocate(YearMonth, .after = Month)
-fib_monthly_bayseg[5:7][is.na(fib_monthly_bayseg[5:7])] <- 0
-
-
-# do the same for providers
-fib_monthly_provider <- fib_temporal |> 
-    summarize(.by = c(OrgName, Year, Month),
-              "Fecal Coliform" = sum(CharacteristicName == "Fecal Coliform"),
-              Enterococcus = sum(CharacteristicName == "Enterococcus"),
-              E.coli = sum(CharacteristicName == "Escherichia coli")) |> 
-    arrange(OrgName, Year, Month)
-fib_monthly_provider <- full_join(fib_monthly_provider, all_months_provs) |> 
-    relocate(YearMonth, .after = Month)
-fib_monthly_provider[5:7][is.na(fib_monthly_provider[5:7])] <- 0
-    
-```
-
-
-
-
-```{r}
-fib_bayseg_long <- fib_monthly_bayseg |> 
-    pivot_longer(5:7, names_to = "Indicator",
-                 values_to = "Count")
-```
-
-
-```{r, fig.height = 6, fig.width = 10}
-fib_provider_long <- fib_monthly_provider |> 
-    pivot_longer(5:7, names_to = "Indicator",
-                 values_to = "Count")
-```
-
-## By Bay Segment  
-
-```{r, fig.height = 6, fig.width = 10}
-# hacky, but it works. turn 0s into NAs and use the na color option
-# in scale_fill_viridis to make the 0s gray.
-
-fib_bayseg_long2 <- fib_bayseg_long |> 
-    mutate(Count = case_when(Count == 0 ~ NA_real_,
-                             .default = Count))
-
-fib_bayseg_long2 |> 
-    ggplot() +
-    geom_tile(aes(x = YearMonth, y = Bay.Segment, fill = Count),
-              na.rm = FALSE) +
-    scale_fill_viridis_c(direction = -1,
-                         na.value = "gray") +
-    facet_wrap(~Indicator, ncol = 3) +
-    labs(x = "",
-         y = "",
-         fill = "# Samples",
-         title = "Sampling Coverage by Bay Segment") +
-    theme(legend.position = "top",
-          legend.justification = "left")
-```
-
-
-## By Provider  
-
-```{r, fig.height = 7, fig.width = 14}
-#| out-width: 100%
-
-# hacky, but it works. turn 0s into NAs and use the na color option
-# in scale_fill_viridis to make the 0s gray.
-
-fib_provider_long2 <- fib_provider_long |> 
-    mutate(Count = case_when(Count == 0 ~ NA_real_,
-                             .default = Count))
-
-fib_provider_long2 |> 
-    ggplot() +
-    geom_tile(aes(x = YearMonth, y = OrgName, fill = Count),
-              na.rm = FALSE) +
-    scale_fill_viridis_c(direction = -1,
-                         na.value = "gray") +
-    facet_wrap(~Indicator, ncol = 3) +
-    labs(x = "",
-         y = "",
-         fill = "# Samples",
-         title = "Sampling Coverage by Provider") +
-    theme(legend.position = "top",
-          legend.justification = "left")
-```
 
