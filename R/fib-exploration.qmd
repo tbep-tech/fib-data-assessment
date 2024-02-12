@@ -140,6 +140,29 @@ fib_stnInfo <- fib_toMap |>
 fib_toMap <- select(fib_toMap, -Lat, -Long)
 ```
 
+```{r fib-save-stnInfo}
+# write out station and provider information for Marcus
+# to incorporate into read_importfib()
+
+stations_ofInterest <- fib_stnInfo |> 
+    filter(Class %in% c("2", "3M")) |> 
+    select(SampleStation, OrgID, OrgName, Bay.Segment, 
+           Fecal.Coliform, Enterococcus, Escherichia.coli) |> 
+    distinct() |> 
+    arrange(OrgID)
+
+orgs_ofInterest <- fib_stnInfo |> 
+    filter(Class %in% c("2", "3M")) |> 
+    select(OrgID, OrgName) |> 
+    distinct() |> 
+    arrange(OrgID)
+
+save(stations_ofInterest, orgs_ofInterest, 
+     file = here::here("data-stnsAndProviders", "stnsAndProviders.RData"))
+```
+
+
+
 ```{r join-fibsamps-wbidinfo}
 # now get all that WBID and Bay Segment info attached to the actual
 # fib sample data frame
@@ -276,6 +299,9 @@ fib_provider_bayseg_long <- fib_monthly_provider_bayseg |>
     pivot_longer(6:8, names_to = "Indicator",
                  values_to = "Count")
 ```
+
+
+
 
 
 
