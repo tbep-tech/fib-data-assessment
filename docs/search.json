@@ -26,5 +26,26 @@
     "title": "FIB Exploration",
     "section": "Tabular Summaries",
     "text": "Tabular Summaries\nThe following tables only include information about Estuarine/Marine sampling stations; Classes 2 or 3M in the WBID shapefile.\n\nBy Bay Segment\n\n\n\nEstuarine and Marine FIB Information\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nFecal Coliform\n\n\nEnterococcus\n\n\nE. coli\n\n\n\nBay Segment\n# Providers\n# Stations\nYears\n# Providers\n# Stations\nYears\n# Providers\n# Stations\nYears\n\n\n\n\nBoca Ciega Bay\n5\n42\n2000- 2019\n4\n21\n2000- 2022\n3\n9\n2015- 2022\n\n\nLower Tampa Bay\n4\n55\n1999- 2022\n3\n23\n2000- 2022\n1\n1\n2018- 2022\n\n\nTerra Ceia Bay\n1\n3\n2009- 2017\n-\n-\n-\n-\n-\n-\n\n\nOld Tampa Bay\n4\n80\n1999- 2022\n4\n70\n2000- 2022\n3\n14\n2001- 2022\n\n\nHillsborough Bay\n3\n67\n1999- 2022\n3\n56\n2000- 2022\n1\n19\n2001- 2022\n\n\nMiddle Tampa Bay\n6\n59\n1999- 2022\n6\n45\n2000- 2022\n2\n8\n2001- 2022\n\n\nManatee River\n2\n6\n1996- 2021\n2\n6\n2013- 2022\n1\n5\n2018- 2022\n\n\n\n\n\n\n\n\n\nBy Provider\n\n\n\n\nEstuarine and Marine FIB Information by Provider\n\n\n\n\n\n\n\n\n\n\n\n\n\nFecal Coliform\n\n\nEnterococcus\n\n\nE. coli\n\n\n\nBay Segment / Provider\n# Stations\nYears\n# Stations\nYears\n# Stations\nYears\n\n\n\n\nBoca Ciega Bay\n\n\nCity of St Petersburg\n5\n2013- 2019\n8\n2013- 2021\n6\n2016- 2021\n\n\nDivision of Environmental Health, Bureau of Water Programs\n4\n2000- 2011\n4\n2000- 2022\n-\n-\n\n\nFL Dept. Environmental Protection, Southwest District\n6\n2004- 2010\n3\n2017- 2022\n1\n2017- 2018\n\n\nFlorida Department of Environmental Protection\n23\n2009- 2017\n-\n-\n-\n-\n\n\nPinellas County Dept. of Environmental Management\n4\n2009- 2016\n6\n2009- 2022\n2\n2015- 2022\n\n\nHillsborough Bay\n\n\nDivision of Environmental Health, Bureau of Water Programs\n1\n2000- 2011\n1\n2000- 2022\n-\n-\n\n\nEnvironmental Protection Commission of Hillsborough County\n51\n1999- 2022\n52\n2001- 2022\n19\n2001- 2022\n\n\nFL Dept. Environmental Protection, Southwest District\n15\n2006- 2011\n3\n2017- 2022\n-\n-\n\n\nLower Tampa Bay\n\n\nDivision of Environmental Health, Bureau of Water Programs\n2\n2000- 2011\n2\n2000- 2022\n-\n-\n\n\nEnvironmental Protection Commission of Hillsborough County\n20\n1999- 2022\n20\n2001- 2022\n-\n-\n\n\nFlorida Department of Environmental Protection\n32\n2009- 2017\n-\n-\n-\n-\n\n\nManatee County Parks and Natural Resources Department (Florida)\n1\n2005- 2021\n1\n2013- 2017\n1\n2018- 2022\n\n\nManatee River\n\n\nFL Dept. Environmental Protection, Southwest District\n1\n2002- 2008\n1\n2017- 2022\n-\n-\n\n\nManatee County Parks and Natural Resources Department (Florida)\n5\n1996- 2021\n5\n2013- 2017\n5\n2018- 2022\n\n\nMiddle Tampa Bay\n\n\nCity of St Petersburg\n2\n2013- 2019\n3\n2013- 2021\n2\n2016- 2016\n\n\nDivision of Environmental Health, Bureau of Water Programs\n3\n2000- 2011\n3\n2000- 2022\n-\n-\n\n\nEnvironmental Protection Commission of Hillsborough County\n35\n1999- 2022\n35\n2001- 2022\n6\n2001- 2022\n\n\nFL Dept. Environmental Protection, Southwest District\n16\n2005- 2011\n1\n2018- 2022\n-\n-\n\n\nManatee County Parks and Natural Resources Department (Florida)\n1\n2011- 2014\n1\n2013- 2014\n-\n-\n\n\nPinellas County Dept. of Environmental Management\n2\n2009- 2012\n2\n2009- 2012\n-\n-\n\n\nOld Tampa Bay\n\n\nDivision of Environmental Health, Bureau of Water Programs\n9\n2000- 2011\n9\n2000- 2022\n-\n-\n\n\nEnvironmental Protection Commission of Hillsborough County\n50\n1999- 2022\n51\n2001- 2022\n8\n2001- 2022\n\n\nFL Dept. Environmental Protection, Southwest District\n18\n2005- 2022\n5\n2017- 2022\n1\n2018- 2018\n\n\nPinellas County Dept. of Environmental Management\n3\n2009- 2016\n5\n2009- 2022\n5\n2015- 2022\n\n\nTerra Ceia Bay\n\n\nFlorida Department of Environmental Protection\n3\n2009- 2017\n-\n-\n-\n-"
+  },
+  {
+    "objectID": "R/fib-exploration.html#temporal-heatmaps-1",
+    "href": "R/fib-exploration.html#temporal-heatmaps-1",
+    "title": "FIB Exploration",
+    "section": "Temporal Heatmaps",
+    "text": "Temporal Heatmaps\nFor 2 & 3M Classes, within the TBEP boundaries, only.\n\nBy Bay Segment\n\n\n\n\n\n\n\n\nBy Provider\n\n\n\n\n\n\n\n\nEnterococcus: Provider x BaySeg"
+  },
+  {
+    "objectID": "R/fib-exploration.html#maps-1",
+    "href": "R/fib-exploration.html#maps-1",
+    "title": "FIB Exploration",
+    "section": "Maps",
+    "text": "Maps\n\nAll stations in TBEP boundary\n\n\n\n\n\n\n\n\n\nAll vs. Estuarine/Marine Only\nFiltering by Class, to be either 2 or 3M\n\n\n\n\n\n\n\n\n\nEstuarine/Marine Only\n\n\n\n\n\n\n\n\n\nTiming by Indicator, Estuarine/Marine only"
+  },
+  {
+    "objectID": "R/fib-exploration.html#tabular-summaries-1",
+    "href": "R/fib-exploration.html#tabular-summaries-1",
+    "title": "FIB Exploration",
+    "section": "Tabular Summaries",
+    "text": "Tabular Summaries\nThe following tables only include information about Estuarine/Marine sampling stations; Classes 2 or 3M in the WBID shapefile.\n\nBy Bay Segment\n\n\nError in dimnames(x) &lt;- dn: length of 'dimnames' [2] not equal to array extent\n\n\n\n\nBy Provider\n\n\nError in dimnames(x) &lt;- dn: length of 'dimnames' [2] not equal to array extent"
   }
 ]

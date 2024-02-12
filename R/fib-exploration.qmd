@@ -24,6 +24,8 @@ library(khroma) # for colorblind-friendly color palettes
 library(tbeptools)
 library(kableExtra)
 library(plotly)
+
+options(knitr.duplicate.label = "allow")  # so I can still use chunk names in the child doc - useful for navigation
 ```
 
 ```{r read-shapefiles}
@@ -81,12 +83,55 @@ fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |>
 
 ```
 
+```{r}
+temporal_from_website <- fib_temporal
+```
+
+
 ***
 ***
 
-# `read_importfib` download  
+# `read_importwqp` download  
 
-just some test text for now
+
+```{r read-sample-info2}
+fib_samps <- readRDS(here::here("data-WQP", "tbeptools_importwqp.rds"))
+
+# doing this to match names from web download
+# probably would have handled differently if I'd downloaded via tbeptools earlier
+names(fib_samps) <- c("OrgID", "SampleStation", "SampleDate",
+                      "class", "yr", "mo", "Lat", "Long",
+                      "Sample_Depth_m", "CharacteristicName",
+                      "val", "uni", "qual")
+
+org_matching <- tribble(
+    ~"OrgID", ~"OrgName",
+    "21FLDOH_WQX",   "Department of Health",
+    "21FLHILL_WQX",  "Hillsborough County",
+    "21FLMANA_WQX",  "Manatee County",
+    "21FLPASC_WQX",  "Pasco County",
+    "21FLPDEM_WQX",  "Pinellas County",
+    "21FLPOLK_WQX",  "Polk County"
+)
+
+fib_samps <- fib_samps |> 
+    mutate(SampleDate = as.Date(SampleDate),
+           CharacteristicName = case_match(CharacteristicName,
+                                           "ecocci" ~ "Enterococcus",
+                                           "ecoli" ~ "Escherichia coli",
+                                           "fcolif" ~ "Fecal Coliform",
+                                           "totcol" ~ "Total Coliform",
+                                           .default = "problem here!")) |> 
+    left_join(org_matching)
+```
+
+```{r, child = "_fib-expl-sourced.qmd"}
+
+```
+
+```{r}
+temporal_from_tbeptools <- fib_temporal
+```
 
 
 
