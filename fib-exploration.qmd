@@ -115,6 +115,7 @@ org_matching <- tribble(
 )
 
 fib_samps <- fib_samps |> 
+    filter(CharacteristicName %in% c("ecocci", "ecoli", "fcolif")) |> 
     mutate(SampleDate = as.Date(SampleDate),
            CharacteristicName = case_match(CharacteristicName,
                                            "ecocci" ~ "Enterococcus",
