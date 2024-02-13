@@ -466,10 +466,10 @@ mapview(bay_segs,
 
 
 ```{r}
-fc_toMap <- 
+entero_toMap <- 
     fib_toMap |> 
     select(SampleStation, OrgName, Water.Type, Class,
-           Indicator = Fecal.Coliform) |> 
+           Indicator = Enterococcus) |> 
     filter(Indicator != "not sampled",
            Class %in% c("2", "3M")) |> 
     separate(Indicator, into = c("start", "latest"), sep = " - ") |> 
@@ -479,21 +479,21 @@ fc_toMap <-
 
 ```{r}
 
-mapview(filter(fc_toMap, latest >= yrsplit),
-            layer.name = paste0("FC Stations sampled since ", yrsplit),
+mapview(filter(entero_toMap, latest >= yrsplit),
+            layer.name = paste0("Enterococcus Stations sampled since ", yrsplit),
             hide = FALSE) +
-    mapview(fc_toMap,
+    mapview(entero_toMap,
         zcol = "latest",
-        at = seq(min(fc_toMap$latest), max(fc_toMap$latest), length.out = col_scale_divs),
-        col.regions = viridis::viridis(n = col_scale_divs, direction = -1),
-        layer.name = "All FC Stations by latest sample year",
+        at = seq(min(entero_toMap$latest), max(entero_toMap$latest), length.out = col_scale_divs),
+        col.regions = khroma::color("devon")(col_scale_divs),
+        layer.name = "All Entero Stations by latest sample year",
         hide = TRUE) +
-    mapview(fc_toMap,
+    mapview(entero_toMap,
         zcol = "tslength",
-        at = seq(min(fc_toMap$tslength), max(fc_toMap$tslength), length.out = col_scale_divs),
-        col.regions = viridis::viridis(n = col_scale_divs, direction = -1),  # n should be the same as length.out in the at seq() above
-        layer.name = "All FC Stations by time series length",
-        hide = TRUE)
+        at = seq(min(entero_toMap$tslength), max(entero_toMap$tslength), length.out = col_scale_divs),
+        col.regions = khroma::color("devon")(col_scale_divs),  # n should be the same as length.out in the at seq() above
+        layer.name = "All Entero Stations by time series length",
+        hide = TRUE) 
 
 ```
 

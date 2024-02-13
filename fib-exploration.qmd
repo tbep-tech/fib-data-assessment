@@ -59,7 +59,7 @@ col_scale_divs <- tslengthsplit  # will actually be one category fewer than this
 This document will compare a hard download through the Water Quality Portal's website to the results from `tbeptools::read_importfib()`. The same figures and tables are produced for both download sources. They are *not* presented as separate tabs because that removed the functionality of a table of contents.   
 
 
-# Website download  
+# 1.  Website download  
 
 
 ### FIB Sampling points
@@ -91,7 +91,7 @@ temporal_from_website <- fib_temporal
 ***
 ***
 
-# `read_importwqp` download  
+# 2.  `read_importwqp` download  
 
 
 ```{r read-sample-info2}
@@ -135,7 +135,11 @@ temporal_from_tbeptools <- fib_temporal
 ```
 
 
+#  3. Comparison of downloads  
 
+
+
+#  4. Recommendations  
 
 
 
