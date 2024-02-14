@@ -1,5 +1,15 @@
 ---
-title: "FIB Exploration"
+title: "Exploration of Fecal Indicator Bacteria data sources in the Tampa Bay Estuary Program watersheds"
+subtitle: "Prepared for the Tampa Bay Estuary Program"
+date: 2024-02-14
+date-modified: today
+author: 
+    name: Kim Cressman
+    orcid: 0000-0002-8083-2434
+    email: kim@catbirdstats.com 
+    affiliation: 
+        name: Catbird Stats, LLC
+        url: https://www.catbirdstats.com
 format: 
     html:
         fig-width: 7
@@ -84,7 +94,7 @@ fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |>
 ```
 
 ```{r}
-temporal_from_website <- fib_temporal
+temporal_from_website <- entero_toMap
 ```
 
 
@@ -131,17 +141,47 @@ fib_samps <- fib_samps |>
 ```
 
 ```{r}
-temporal_from_tbeptools <- fib_temporal
+temporal_from_tbeptools <- entero_toMap
 ```
 
 
 #  3. Comparison of downloads  
 
+### Map of Enterococcus sampling stations by download method  
+
+As with most maps above, only looking at waters in 2 and 3M classes.  
+
+```{r}
+mapview(bay_segs,
+        col.regions = map_colors[4],
+        layer.name = "Bay Segment") +
+    mapview(temporal_from_tbeptools,
+            layer.name = "stations in read_importwqp download") +
+    mapview(temporal_from_website,
+            layer.name = "stations in website download",
+            col.regions = map_colors[5])
+```
+
+
+Most of the stations appeared in both downloads, because the bulk of the stations are sampled by organizations that were already written into `tbeptools::read_importwqp()`.  
+
+**Stations in `read_importwqp` download but not website download:**  
+
+-  Stations sampled by Pinellas County. The website download was limited to stations that were sampled at least 10 times, so the stratified random sampling setup of Pinellas County did not yield stations. These stations are certainly worth considering in a report card, as they go back to 2009.  
+
+
+**Stations in website download but not `read_importwqp` download:**  
+
+-  10 stations sampled by the City of St. Petersburg, OrgID 21FLCOSP_WQX - primarily in the Boca Ciega Bay segment. Data in the WQP spanned the range or 2016 or 2017 until 2021. 
+-  13 stations sampled by the FL Department of Environmental Protection, Southwest District, OrgID 21FLTPA_WQX. There are 1-5 of these in each major bay segment. Sampling ended for some by 2017, but others were current through 2022. 
 
 
 #  4. Recommendations  
 
+Based on this exploration of FIB data availability, we make the following recommendations:  
 
+1.  Use Enterococcus as the fecal indicator of choice in estuarine report cards. The temporal coverage for this indicator is almost universally more recent than for fecal coliform.  
+2.  Add 21FLCOSP_WQX and 21FLTPA_WQX as valid entries for `org` in `tbeptools::read_importwqp()`.  
 
 
 

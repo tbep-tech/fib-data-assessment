@@ -461,7 +461,7 @@ mapview(bay_segs,
 ```
 
 
-### Timing by Indicator, Estuarine/Marine only  
+### Timing of Enterococcus sampling, Estuarine/Marine only  
 
 
 
