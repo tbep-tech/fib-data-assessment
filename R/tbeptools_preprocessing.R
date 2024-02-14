@@ -1,10 +1,6 @@
 library(tbeptools)
 library(tidyverse)
 
-read_importfib(xlsx = here::here("data-WQP",
-                                 "tbeptools_importfib_download.xlsx"),
-               download_latest = FALSE)
-
 wqp_orgs <- c("21FLDOH_WQX",
               "21FLHILL_WQX",
               "21FLMANA_WQX",

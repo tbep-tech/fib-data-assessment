@@ -1,5 +1,14 @@
 project:
     type: website
     output-dir: docs
-    
-toc: true
+website:
+    title: "FIB exploration"
+    site-url: https://tbep-tech.github.io/fib-data-assessment/
+    repo-url: https://github.com/tbep-tech/fib-data-assessment
+    repo-actions: [source]
+html:
+    toc: true
+    code-links:
+      text: Source Repository
+      icon: github
+      href: https://github.com/tbep-tech/fib-data-assessment

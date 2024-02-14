@@ -407,49 +407,38 @@ if(n_est_orgs <=9){
     } else {est_org_cols <- color("sunset")(n_est_orgs)}
 ```
 
-### All stations in TBEP boundary  
+
+### All Stations vs. Estuarine/Marine Only   
+
+Estuarine/Marine means that Class in the WBID layer was either 2 or 3M. This map also contains layers for bay segments and wbids.  
 
 ```{r}
 mapview(bay_segs,
         col.regions = map_colors[4],
-        label = "BAY_SEG") +
+        label = "BAY_SEG",
+        layer.name = "Bay Segment") +
     mapview(wbids,
             col.regions = map_colors[2],
             label = "WBID",
             hide = TRUE) +
-    mapview(fib_toMap,
-            zcol = "Class",
-            col.regions = wbclass_cols,
-            layer.name = "Water body class") +
-    mapview(fib_toMap,
-            zcol = "shortName",
-            col.regions = org_cols,
-            layer.name = "Provider",
-            hide = TRUE)
-```
-
-
-### All vs. Estuarine/Marine Only   
-
-Filtering by Class, to be either 2 or 3M  
-
-```{r}
-mapview(filter(fib_toMap, Class %in% c("2", "3M")),
+    mapview(filter(fib_toMap, Class %in% c("2", "3M")),
             zcol = "Class",
             col.regions = color("muted")(2),
             layer.name = "Estuarine Only") +
     mapview(fib_toMap,
             zcol = "Class",
             col.regions = wbclass_cols,
-            layer.name = "All")
+            layer.name = "All",
+            hide = TRUE)
 ```
 
-### Estuarine/Marine Only  
+### Providers, Estuarine/Marine Only  
 
 ```{r}
 mapview(bay_segs,
         col.regions = map_colors[4],
-        label = "BAY_SEG") +
+        label = "BAY_SEG",
+        layer.name = "Bay Segment") +
     mapview(wbids,
             col.regions = map_colors[2],
             label = "WBID",

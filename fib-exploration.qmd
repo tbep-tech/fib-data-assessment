@@ -1,12 +1,11 @@
 ---
-title: "Exploration of Fecal Indicator Bacteria data sources in the Tampa Bay Estuary Program watersheds"
+title: "Exploration of Fecal Indicator Bacteria data sources in Tampa Bay watersheds"
 subtitle: "Prepared for the Tampa Bay Estuary Program"
 date: 2024-02-14
 date-modified: today
 author: 
     name: Kim Cressman
     orcid: 0000-0002-8083-2434
-    email: kim@catbirdstats.com 
     affiliation: 
         name: Catbird Stats, LLC
         url: https://www.catbirdstats.com
@@ -15,6 +14,8 @@ format:
         fig-width: 7
         fig-height: 7
         toc: true
+        toc-location: left
+        toc-title: Table of Contents
 embed-resources: false
 execute:
     echo: false
@@ -61,28 +62,32 @@ wbids <- st_intersection(wbids, bay_segs)
 
 ```{r}
 yrsplit <- params$YeartoSplit
-tslengthsplit <- params$nYearSegments
+tslengthsplit <- params$nYearSegments + 1
 
 col_scale_divs <- tslengthsplit  # will actually be one category fewer than this, because of the sequence endpoints
 ```
 
-This document will compare a hard download through the Water Quality Portal's website to the results from `tbeptools::read_importfib()`. The same figures and tables are produced for both download sources. They are *not* presented as separate tabs because that removed the functionality of a table of contents.   
+# Overview
 
+This document was compiled in order to explore spatial and temporal coverage of fecal indicator bacteria (FIB) data in the Tampa Bay watershed, and determine which data sources and indicators are appropriate for future report card development. The indicator with the most up-to-date information, across all bay segments, is Enterococcus. The primary organizations collecting FIB data are the Counties, and through this exploration, additional providers with substantial datasets have also become apparent (e.g. Department of Health, Department of Environmental Protection, and some of the Cities).
 
-# 1.  Website download  
+A secondary goal of this exploration was to compare data downloaded via `tbeptools::import_readwqp()`, a programmatic interface to the Water Quality Portal's API, to that downloaded directly from the Water Quality Portal. Data coverage is quite similar from both sources, though I recommend adding some key organizations to the `tbeptools` function. At least one stakeholder has experienced issues getting incomplete data through the `tbeptools`/API route. I have not used this function extensively - it did not give me problems while working up this report, but they could still happen in the future. The tables of sample timing and locations provided below can provide a baseline for future downloads, to make sure the number of stations and years provided in a download match closely.
 
+The tables and figures below are identical for both download sources. All graphics and maps are interactive; hovering or clicking on an area will call up additional information.
+
+Source code and data for this document can be found in the [GitHub repository](https://github.com/tbep-tech/fib-data-assessment).
+
+# 1. Website download
 
 ### FIB Sampling points
 
-This file contains *results* from microbiological sampling in the 5 TBEP counties from 1995-2022. We don't necessarily need to know what the results are, just that they exist. The query from Water Quality Portal was also set to only include stations with at least 10 sampling events. The latest download was performed 1/29/2024 and [this is the link to the query](https://www.waterqualitydata.us/#countrycode=US&statecode=US%3A12&countycode=US%3A12%3A057&countycode=US%3A12%3A081&countycode=US%3A12%3A101&countycode=US%3A12%3A103&countycode=US%3A12%3A105&sampleMedia=Water&characteristicType=Microbiological&startDateLo=01-01-1995&startDateHi=12-31-2022&minactivities=10&mimeType=csv&dataProfile=biological&providers=NWIS&providers=STEWARDS&providers=STORET).
+The [Water Quality Portal](https://www.waterqualitydata.us/) was [queried](https://www.waterqualitydata.us/#countrycode=US&statecode=US%3A12&countycode=US%3A12%3A057&countycode=US%3A12%3A081&countycode=US%3A12%3A101&countycode=US%3A12%3A103&countycode=US%3A12%3A105&sampleMedia=Water&characteristicType=Microbiological&startDateLo=01-01-1995&startDateHi=12-31-2022&minactivities=10&mimeType=csv&dataProfile=biological&providers=NWIS&providers=STEWARDS&providers=STORET) on 1/29/2024. Query specifications were for results from microbiological sampling in the 5 TBEP counties from 1995-2022, and to only include stations with at least 10 sampling events.
 
-That download was pre-processed using `R/WQP_preprocessing.R` to:  
+The downloaded .csv file was 167MB, and so is not in the [github repository](https://github.com/tbep-tech/fib-data-assessment) for this project. A [zipped version](https://drive.google.com/file/d/15edxP1gpqz9CXmZBefVt3XrUA3EaTGyP/view?usp=drive_link) is available via TBEP's google drive. The file was pre-processed using [`R/WQP_preprocessing.R`](https://github.com/tbep-tech/fib-data-assessment/blob/main/R/WQP_preprocessing.R) to:
 
--  filter out Groundwater samples - only keeping Surface Water.  
--  only keep sample types Fecal Coliform, Total Coliform, Enterococcus, and E. coli (eliminates DNA-based samples). Total Coliform is in the processed data frame but I am ignoring it in this exploration.  
--  only keep a small subset of columns relevant to this exploration.  
-
-The pre-processing reduced the file size from 167MB to 40MB, and the smaller file is used in this document.  
+-   filter out Groundwater samples to only retain Surface Water or unlabeled sources.\
+-   retain only sample types Fecal Coliform, Total Coliform, Enterococcus, and E. coli (eliminating the DNA-based sample types that were contained in the file). Total Coliform is in the processed data frame but has not been included in this exploration.\
+-   remove the majority of columns.
 
 ```{r read-sample-info}
 fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |> 
@@ -97,12 +102,17 @@ fib_samps <- readRDS(here::here("data-WQP", "biological_reduced.rds")) |>
 temporal_from_website <- entero_toMap
 ```
 
+------------------------------------------------------------------------
 
-***
-***
+------------------------------------------------------------------------
 
-# 2.  `read_importwqp` download  
+# 2. `read_importwqp` download
 
+### FIB Sampling points
+
+Once the majority of code below was built out, another version of data was downloaded via the `tbeptools::read_importwqp()` function. All valid organization IDs recognized by the function at the time (2/12/2024) were included: FL Department of Health (21FLDOH_WQX), Hillsborough County (21FLHILL_WQX), Manatee County (21FLMANA_WQX), Pasco County (21FLPASCO_WQX), Pinellas County (21FLPDEM_WQX), and Polk County (21FLPOLK_WQX).
+
+This download was performed via the [`R/tbeptools_preprocessing.R`](https://github.com/tbep-tech/fib-data-assessment/blob/main/R/tbeptools_preprocessing.R) script and saved as [`data-WQP/tbeptools_importwqp.rds`](https://github.com/tbep-tech/fib-data-assessment/blob/main/data-WQP/tbeptools_importwqp.rds) (available in the github repository).
 
 ```{r read-sample-info2}
 fib_samps <- readRDS(here::here("data-WQP", "tbeptools_importwqp.rds"))
@@ -144,12 +154,11 @@ fib_samps <- fib_samps |>
 temporal_from_tbeptools <- entero_toMap
 ```
 
+# 3. Comparison of downloads
 
-#  3. Comparison of downloads  
+### Map of Enterococcus sampling stations by download method
 
-### Map of Enterococcus sampling stations by download method  
-
-As with most maps above, only looking at waters in 2 and 3M classes.  
+As with most maps above, only looking at waters in 2 and 3M classes.
 
 ```{r}
 mapview(bay_segs,
@@ -162,26 +171,20 @@ mapview(bay_segs,
             col.regions = map_colors[5])
 ```
 
+Most of the stations appeared in both downloads, because the bulk of the stations are sampled by organizations that were already written into `tbeptools::read_importwqp()`.
 
-Most of the stations appeared in both downloads, because the bulk of the stations are sampled by organizations that were already written into `tbeptools::read_importwqp()`.  
+**Stations in `read_importwqp` download but not website download:**
 
-**Stations in `read_importwqp` download but not website download:**  
+-   Stations sampled by Pinellas County. The website download was limited to stations that were sampled at least 10 times, so the stratified random sampling setup of Pinellas County did not yield stations. These stations are certainly worth considering in a report card, as they go back to 2009.
 
--  Stations sampled by Pinellas County. The website download was limited to stations that were sampled at least 10 times, so the stratified random sampling setup of Pinellas County did not yield stations. These stations are certainly worth considering in a report card, as they go back to 2009.  
+**Stations in website download but not `read_importwqp` download:**
 
+-   10 stations sampled by the City of St. Petersburg, OrgID 21FLCOSP_WQX - primarily in the Boca Ciega Bay segment. Data in the WQP spanned the range or 2016 or 2017 until 2021.
+-   13 stations sampled by the FL Department of Environmental Protection, Southwest District, OrgID 21FLTPA_WQX. There are 1-5 of these in each major bay segment. Sampling ended for some by 2017, but others were current through 2022.
 
-**Stations in website download but not `read_importwqp` download:**  
+# 4. Recommendations
 
--  10 stations sampled by the City of St. Petersburg, OrgID 21FLCOSP_WQX - primarily in the Boca Ciega Bay segment. Data in the WQP spanned the range or 2016 or 2017 until 2021. 
--  13 stations sampled by the FL Department of Environmental Protection, Southwest District, OrgID 21FLTPA_WQX. There are 1-5 of these in each major bay segment. Sampling ended for some by 2017, but others were current through 2022. 
+Based on this exploration of FIB data availability, I recommend:
 
-
-#  4. Recommendations  
-
-Based on this exploration of FIB data availability, we make the following recommendations:  
-
-1.  Use Enterococcus as the fecal indicator of choice in estuarine report cards. The temporal coverage for this indicator is almost universally more recent than for fecal coliform.  
-2.  Add 21FLCOSP_WQX and 21FLTPA_WQX as valid entries for `org` in `tbeptools::read_importwqp()`.  
-
-
-
+1.  Use Enterococcus as the fecal indicator of choice in estuarine report cards. The temporal coverage for this indicator is almost universally more recent than for fecal coliform.\
+2.  Add 21FLCOSP_WQX and 21FLTPA_WQX as valid entries for `org` in `tbeptools::read_importwqp()`.
